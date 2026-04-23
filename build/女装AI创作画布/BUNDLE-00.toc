@@ -1,0 +1,1 @@
+([('女装AI创作画布', '/Users/neo/Downloads/aigcfushi/dist/女装AI创作画布', 'EXECUTABLE')],)
