@@ -14,7 +14,7 @@ from PyQt5.QtCore import Qt, QMimeData, QUrl, QThread, pyqtSignal
 from PyQt5.QtGui import QDrag
 
 # 导入配置
-from config import DOUBAO_API_KEY, DOUBAO_API_URL, DOUBAO_MODEL, IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_COUNT, OUTPUT_DIR
+from config import DOUBAO_API_KEY, DOUBAO_API_URL, DOUBAO_MODEL, IMAGE_WIDTH, IMAGE_HEIGHT, IMAGE_COUNT
 
 class ImageCanvas(QWidget):
     def __init__(self, parent=None):
@@ -196,10 +196,11 @@ class GenerateThread(QThread):
     result_ready = pyqtSignal(list)   # 参数: [image_path, ...]
     error_occurred = pyqtSignal(str)  # 参数: error_message
 
-    def __init__(self, prompt, images, parent=None):
+    def __init__(self, prompt, images, output_dir, parent=None):
         super().__init__(parent)
         self.prompt = prompt
         self.images = images
+        self.output_dir = output_dir
 
     def run(self):
         try:
@@ -222,7 +223,7 @@ class GenerateThread(QThread):
             data = resp.json()
 
             # 确保输出目录存在
-            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            os.makedirs(self.output_dir, exist_ok=True)
 
             result_paths = []
             for item in data.get("data", []):
@@ -231,7 +232,7 @@ class GenerateThread(QThread):
                     # 直接从base64解码保存，避免JPEG压缩损失
                     img_data = base64.b64decode(b64_data)
                     filename = f"gen_{int(time.time())}_{uuid.uuid4().hex[:6]}.png"
-                    save_path = os.path.join(OUTPUT_DIR, filename)
+                    save_path = os.path.join(self.output_dir, filename)
                     with open(save_path, 'wb') as f:
                         f.write(img_data)
                     result_paths.append(save_path)
@@ -250,6 +251,7 @@ class AICanvasApp(QMainWindow):
         super().__init__()
         self.setWindowTitle('女装AI创作画布')
         self.setGeometry(100, 100, 1200, 800)
+        self.output_dir = None          # 输出目录，首次生成时选择
         self.gen_queue = []           # 批量生成队列
         self.gen_total = 0            # 总任务数
         self.gen_current = 0          # 已完成任务数
@@ -568,8 +570,28 @@ class AICanvasApp(QMainWindow):
         waiting = len(self.gen_queue)
         self.setWindowTitle(f'服装AI创作画布 by 公子鱼 - 批量生成 完成{done}/{total} 执行中{active} 等待{waiting}')
 
+    def getOutputDir(self):
+        """获取输出目录，首次使用时让用户选择"""
+        if self.output_dir and os.path.isdir(self.output_dir):
+            return self.output_dir
+        # 提示用户选择输出目录
+        folder = QFileDialog.getExistingDirectory(self, '请选择图片保存目录')
+        if folder:
+            self.output_dir = folder
+            return self.output_dir
+        return None
+
     def callDoubaoAPI(self, product_path, model_path, pose_path=None, scene_path=None, is_batch=False):
         """调用豆包生图API，在后台线程中执行"""
+        # 获取输出目录
+        output_dir = self.getOutputDir()
+        if not output_dir:
+            if is_batch:
+                self.gen_queue.clear()
+                self.gen_active = 0
+                self.setWindowTitle('女装AI创作画布')
+            return
+
         # 构建prompt - 商业拍摄级画质
         quality_suffix = "，商业摄影级别画质，超高清细节，8K分辨率，专业影棚灯光，锐利清晰，服装纹理细节完整保留，肤色自然真实，画面干净通透"
         prompt = "将图1的服装精准穿在图2的模特身上，完美保留服装的面料质感和纹理细节，保持模特姿态自然、脸部特征和图2一致" + quality_suffix
@@ -592,7 +614,7 @@ class AICanvasApp(QMainWindow):
         placeholder = self.addPlaceholder()
 
         # 启动后台线程
-        thread = GenerateThread(prompt, images)
+        thread = GenerateThread(prompt, images, output_dir)
         thread.result_ready.connect(lambda paths, ph=placeholder, batch=is_batch: self.onGenerateResult(paths, ph, batch))
         thread.error_occurred.connect(lambda msg, ph=placeholder, batch=is_batch: self.onGenerateError(msg, ph, batch))
         self.active_threads.append(thread)
@@ -798,11 +820,16 @@ class AICanvasApp(QMainWindow):
             prompt = prompt_map.get(process_type, '优化图1')
         image_b64 = self.imageToBase64(image_path)
 
+        # 获取输出目录
+        output_dir = self.getOutputDir()
+        if not output_dir:
+            return
+
         # 添加占位标签
         placeholder = self.addPlaceholder()
 
         # 启动后台线程生成
-        thread = GenerateThread(prompt, [image_b64])
+        thread = GenerateThread(prompt, [image_b64], output_dir)
         thread.result_ready.connect(lambda paths, ph=placeholder: self.onGenerateResult(paths, ph))
         thread.error_occurred.connect(lambda msg, ph=placeholder: self.onGenerateError(msg, ph))
         self.active_threads.append(thread)
