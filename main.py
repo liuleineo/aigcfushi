@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QGridLayout, QPushButton, QLabel, QFileDialog, QScrollArea,
     QMenu, QAction, QMessageBox, QInputDialog, QSizePolicy, QDialog
 )
-from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QFont, QColor
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QPen, QFont, QColor, QDesktop
 from PyQt5.QtCore import Qt, QMimeData, QUrl, QThread, pyqtSignal
 from PyQt5.QtGui import QDrag
 
@@ -249,7 +249,7 @@ class GenerateThread(QThread):
 class AICanvasApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('女装AI创作画布')
+        self.setWindowTitle('服装AI创作画布')
         self.setGeometry(100, 100, 1200, 800)
         self.output_dir = None          # 输出目录，首次生成时选择
         self.gen_queue = []           # 批量生成队列
@@ -589,7 +589,7 @@ class AICanvasApp(QMainWindow):
             if is_batch:
                 self.gen_queue.clear()
                 self.gen_active = 0
-                self.setWindowTitle('女装AI创作画布')
+                self.setWindowTitle('服装AI创作画布')
             return
 
         # 构建prompt - 商业拍摄级画质
@@ -631,6 +631,9 @@ class AICanvasApp(QMainWindow):
             self._insertResultImageAtFront(path)
         # 重新紧凑排列所有元素
         self._compactItems()
+        # 自动打开输出文件夹
+        if self.output_dir and os.path.isdir(self.output_dir):
+            QDesktop.openUrl(QUrl.fromLocalFile(self.output_dir))
         # 批量模式下处理并发逻辑
         if is_batch:
             self.gen_active -= 1
@@ -640,7 +643,7 @@ class AICanvasApp(QMainWindow):
             if self.gen_queue:
                 self._processQueue()
             elif self.gen_active == 0:
-                self.setWindowTitle('女装AI创作画布 - 批量生成完成')
+                self.setWindowTitle('服装AI创作画布 - 批量生成完成')
                 QMessageBox.information(self, '完成', f'批量生成完成，共 {self.gen_total} 组')
 
     def onGenerateError(self, error_msg, placeholder=None, is_batch=False):
@@ -660,7 +663,7 @@ class AICanvasApp(QMainWindow):
             if self.gen_queue:
                 self._processQueue()
             elif self.gen_active == 0:
-                self.setWindowTitle('女装AI创作画布 - 批量生成完成')
+                self.setWindowTitle('服装AI创作画布 - 批量生成完成')
                 QMessageBox.information(self, '完成', f'批量生成完成，共 {self.gen_total} 组')
 
     def _compactItems(self):
