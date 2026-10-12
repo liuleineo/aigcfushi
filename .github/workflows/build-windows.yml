@@ -26,6 +26,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller PyQt5 requests
 
+      - name: Generate config.py
+        shell: python
+        env:
+          DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
+        run: |
+          import os
+          key = os.environ["DOUBAO_API_KEY"]
+          with open("config.py", "w", encoding="utf-8") as f:
+              f.write(f"DOUBAO_API_KEY = {key!r}\n")
+              f.write('DOUBAO_API_URL = "https://ark.cn-beijing.volces.com/api/v3/images/generations"\n')
+              f.write('DOUBAO_MODEL = "doubao-seedream-4-5-251128"\n')
+              f.write("IMAGE_WIDTH = 2048\n")
+              f.write("IMAGE_HEIGHT = 2048\n")
+              f.write("IMAGE_COUNT = 1\n")
+
       - name: Build EXE with PyInstaller
         run: |
           pyinstaller --noconfirm --windowed --onefile --name "服装AI创作画布" --add-data "config.py;." main.py
